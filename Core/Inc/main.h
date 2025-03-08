@@ -71,6 +71,7 @@ void Error_Handler(void);
 #define RFM69_MOSI_GPIO_Port GPIOA
 #define RFM69_DI0_IRQ_Pin GPIO_PIN_0
 #define RFM69_DI0_IRQ_GPIO_Port GPIOB
+#define RFM69_DI0_IRQ_EXTI_IRQn EXTI0_1_IRQn
 #define RFM69_RST_Pin GPIO_PIN_1
 #define RFM69_RST_GPIO_Port GPIOB
 #define USART_TX_Pin GPIO_PIN_9
@@ -83,6 +84,7 @@ void Error_Handler(void);
 #define LED_RED_EN_GPIO_Port GPIOB
 #define SW_IN_Pin GPIO_PIN_6
 #define SW_IN_GPIO_Port GPIOB
+#define SW_IN_EXTI_IRQn EXTI4_15_IRQn
 
 /* USER CODE BEGIN Private defines */
 
