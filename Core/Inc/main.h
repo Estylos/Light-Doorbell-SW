@@ -36,7 +36,8 @@ extern "C" {
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
-
+extern uint8_t g_flag_switch;
+extern uint8_t g_flag_message;
 /* USER CODE END ET */
 
 /* Exported constants --------------------------------------------------------*/
@@ -61,8 +62,8 @@ void Error_Handler(void);
 #define BATT_ADC_GPIO_Port GPIOA
 #define BATT_EN_Pin GPIO_PIN_2
 #define BATT_EN_GPIO_Port GPIOA
-#define RFM69_NSS_Pin GPIO_PIN_4
-#define RFM69_NSS_GPIO_Port GPIOA
+#define RFM69_CS_Pin GPIO_PIN_4
+#define RFM69_CS_GPIO_Port GPIOA
 #define RFM69_SCK_Pin GPIO_PIN_5
 #define RFM69_SCK_GPIO_Port GPIOA
 #define RFM69_MISO_Pin GPIO_PIN_6

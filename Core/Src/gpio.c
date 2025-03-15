@@ -23,6 +23,7 @@
 
 /* USER CODE BEGIN 0 */
 #include <stdio.h>
+#include "main.h"
 /* USER CODE END 0 */
 
 /*----------------------------------------------------------------------------*/
@@ -52,7 +53,7 @@ void MX_GPIO_Init(void)
 	__HAL_RCC_GPIOB_CLK_ENABLE();
 
 	/*Configure GPIO pin Output Level */
-	HAL_GPIO_WritePin(BATT_EN_GPIO_Port, BATT_EN_Pin, GPIO_PIN_RESET);
+	HAL_GPIO_WritePin(GPIOA, BATT_EN_Pin | RFM69_CS_Pin, GPIO_PIN_RESET);
 
 	/*Configure GPIO pin Output Level */
 	HAL_GPIO_WritePin(GPIOB, RFM69_RST_Pin | LED_GRN_EN_Pin | LED_RED_EN_Pin, GPIO_PIN_RESET);
@@ -70,18 +71,18 @@ void MX_GPIO_Init(void)
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-	/*Configure GPIO pin : BATT_EN_Pin */
-	GPIO_InitStruct.Pin = BATT_EN_Pin;
+	/*Configure GPIO pins : BATT_EN_Pin RFM69_CS_Pin */
+	GPIO_InitStruct.Pin = BATT_EN_Pin | RFM69_CS_Pin;
 	GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
-	HAL_GPIO_Init(BATT_EN_GPIO_Port, &GPIO_InitStruct);
+	HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-	/*Configure GPIO pins : RFM69_DI0_IRQ_Pin SW_IN_Pin */
-	GPIO_InitStruct.Pin = RFM69_DI0_IRQ_Pin | SW_IN_Pin;
+	/*Configure GPIO pin : RFM69_DI0_IRQ_Pin */
+	GPIO_InitStruct.Pin = RFM69_DI0_IRQ_Pin;
 	GPIO_InitStruct.Mode = GPIO_MODE_IT_RISING;
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
-	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+	HAL_GPIO_Init(RFM69_DI0_IRQ_GPIO_Port, &GPIO_InitStruct);
 
 	/*Configure GPIO pins : RFM69_RST_Pin LED_GRN_EN_Pin LED_RED_EN_Pin */
 	GPIO_InitStruct.Pin = RFM69_RST_Pin | LED_GRN_EN_Pin | LED_RED_EN_Pin;
@@ -96,6 +97,12 @@ void MX_GPIO_Init(void)
 	GPIO_InitStruct.Pull = GPIO_NOPULL;
 	HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
+	/*Configure GPIO pin : SW_IN_Pin */
+	GPIO_InitStruct.Pin = SW_IN_Pin;
+	GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+	GPIO_InitStruct.Pull = GPIO_NOPULL;
+	HAL_GPIO_Init(SW_IN_GPIO_Port, &GPIO_InitStruct);
+
 	/* EXTI interrupt init*/
 	HAL_NVIC_SetPriority(EXTI0_1_IRQn, 0, 0);
 	HAL_NVIC_EnableIRQ(EXTI0_1_IRQn);
@@ -108,9 +115,25 @@ void MX_GPIO_Init(void)
 /* USER CODE BEGIN 2 */
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
-	if(GPIO_Pin == SW_IN_Pin) {
-		printf("Switch pressed!\n");
-		HAL_GPIO_TogglePin(LED_GRN_EN_GPIO_Port, LED_GRN_EN_Pin);
+	if(GPIO_Pin == SW_IN_Pin)
+		g_flag_switch = 1;
+	else if(GPIO_Pin == RFM69_DI0_IRQ_Pin)
+		g_flag_message = 1;
+}
+
+void BlinkLEDS(void)
+{
+	for(uint8_t i = 0; i < 3; i++)
+	{
+		for(uint8_t j = 0; j < 3; j++)
+		{
+			HAL_GPIO_WritePin(LED_GRN_EN_GPIO_Port, LED_GRN_EN_Pin, GPIO_PIN_SET);
+			HAL_Delay(300);
+			HAL_GPIO_WritePin(LED_GRN_EN_GPIO_Port, LED_GRN_EN_Pin, GPIO_PIN_RESET);
+			HAL_Delay(100);
+		}
+		HAL_Delay(500);
 	}
+
 }
 /* USER CODE END 2 */
