@@ -19,6 +19,7 @@ static void SPI_SendData(RFM69_t *rfm69, uint8_t addr, uint8_t *data, uint16_t d
 static void SPI_ReadData(RFM69_t *rfm69, uint8_t addr, uint8_t *data, uint16_t data_size);
 static void WriteRegister(RFM69_t *rfm69, uint8_t reg, uint8_t byte);
 static uint8_t ReadRegister(RFM69_t *rfm69, uint8_t reg);
+static uint8_t ReadMode(RFM69_t *rfm69);
 static void WaitForModeReady(RFM69_t *rfm69);
 static void WaitForPacketSent(RFM69_t *rfm69);
 
@@ -48,6 +49,8 @@ static const uint8_t rfm69_base_config[][2] = {
 
 void RFM69_Init(RFM69_t *rfm69)
 {
+	rfm69->_listen_mode_activated = 0;
+
 	RFM69_SetCustomConfig(rfm69, rfm69_base_config, sizeof(rfm69_base_config) / 2);
 
 	// Disable OCP for high power devices, enable otherwise
@@ -62,12 +65,10 @@ void RFM69_SetCustomConfig(RFM69_t *rfm69, const uint8_t config[][2], size_t con
 
 void RFM69_SetMode(RFM69_t *rfm69, uint8_t mode)
 {
-	if((mode == rfm69->mode) || (mode > RFM69_MODE_RX))
+	if((mode == ReadMode(rfm69)) || (mode > RFM69_MODE_RX))
 		return;
 
 	WriteRegister(rfm69, 0x01, mode << 2);
-
-	rfm69->mode = mode;
 }
 
 void RFM69_ChangeDI0Mapping(RFM69_t *rfm69, uint8_t mapping)
@@ -75,13 +76,42 @@ void RFM69_ChangeDI0Mapping(RFM69_t *rfm69, uint8_t mapping)
 	WriteRegister(rfm69, 0x25, mapping << 6);
 }
 
+void RFM69_ActiveListenMode(RFM69_t *rfm69, uint8_t resol_idle, uint8_t coef_idle, uint8_t resol_rx, uint8_t coef_rx)
+{
+	uint8_t reg_listen_1 = 0x02 << 1; // ListenEnd: 10, resume Listen Mode
+	reg_listen_1 |= (resol_rx & 0x03) << 4; // ListenResolRx
+	reg_listen_1 |= (resol_idle & 0x03) << 6; // ListenResolIdle
+
+	uint8_t listen_mode_config[][2] = {
+			{ 0x01, 0x44 }, // RegOpMode: ListenOn, Standby Mode
+			{ 0x0D, reg_listen_1 }, // RegListen1
+			{ 0x0E, coef_idle }, // RegListen2
+			{ 0x0F, coef_rx }, // RegListen3
+			{ 0x29, 0xB4 }, // RssiThreshold: -90 dB
+			{ 0x2A, 0x3E }, // TimeoutRxStart: 62*16*(1/10kbps) = 100 ms
+			{ 0x2B, 0x3E } // TimeoutRssiThresh: 100 ms
+	};
+
+	RFM69_SetCustomConfig(rfm69, listen_mode_config, sizeof(listen_mode_config) / 2);
+
+	rfm69->_listen_mode_activated = 1;
+}
+
+void RFM69_DisableListenMode(RFM69_t *rfm69, uint8_t mode)
+{
+	if(mode > RFM69_MODE_RX)
+		return;
+
+	WriteRegister(rfm69, 0x01, 0x20 | mode << 2); // RegOpMode: ListenAbort, selected mode
+	WriteRegister(rfm69, 0x01, mode << 2); // RegOpMode: selected mode
+
+	rfm69->_listen_mode_activated = 0;
+}
+
 void RFM69_SendMessage(RFM69_t *rfm69, uint8_t *message, size_t message_size)
 {
-	if(rfm69->mode != RFM69_MODE_SLEEP)
-	{
-		RFM69_SetMode(rfm69, RFM69_MODE_STANDBY);
-		WaitForModeReady(rfm69);
-	}
+	RFM69_SetMode(rfm69, RFM69_MODE_STANDBY);
+	WaitForModeReady(rfm69);
 
 	// Clear FIFO
 	WriteRegister(rfm69, 0x28, 0x10);
@@ -98,7 +128,7 @@ void RFM69_SendMessage(RFM69_t *rfm69, uint8_t *message, size_t message_size)
 	RFM69_SetMode(rfm69, RFM69_MODE_TX);
 	WaitForPacketSent(rfm69);
 
-	RFM69_SetMode(rfm69, RFM69_MODE_STANDBY);
+	RFM69_SetMode(rfm69, RFM69_MODE_SLEEP);
 	WaitForModeReady(rfm69);
 }
 
@@ -172,16 +202,16 @@ int RFM69_SetPowerDBm(RFM69_t *rfm69, int8_t dBm)
 size_t RFM69_ReceiveMessage(RFM69_t *rfm69, uint8_t *buffer, size_t buffer_size)
 {
 	size_t bytes_read = 0;
-
-	if(rfm69->mode != RFM69_MODE_RX)
+	if(ReadMode(rfm69) != RFM69_MODE_RX && !rfm69->_listen_mode_activated)
 	{
 		RFM69_SetMode(rfm69, RFM69_MODE_RX);
 		WaitForModeReady(rfm69);
 	}
 
 	// If PayloadReady flag is set
-	if(ReadRegister(rfm69, 0x28) & 0x04)
+	if(ReadRegister(rfm69, 0x28) & 0x04 || rfm69->_listen_mode_activated)
 	{
+		printf("PayloadReady flag is set \n");
 		RFM69_SetMode(rfm69, RFM69_MODE_STANDBY);
 
 		// Read until FIFO is empty or buffer size is reached
@@ -191,8 +221,11 @@ size_t RFM69_ReceiveMessage(RFM69_t *rfm69, uint8_t *buffer, size_t buffer_size)
 			bytes_read++;
 		}
 
-		RFM69_SetMode(rfm69, RFM69_MODE_RX);
-		WaitForModeReady(rfm69);
+		if(!rfm69->_listen_mode_activated)
+		{
+			RFM69_SetMode(rfm69, RFM69_MODE_RX);
+			WaitForModeReady(rfm69);
+		}
 	}
 
 	return bytes_read;
@@ -246,6 +279,11 @@ static uint8_t ReadRegister(RFM69_t *rfm69, uint8_t reg)
 	SPI_ChipUnselect(rfm69);
 
 	return reg_value;
+}
+
+static uint8_t ReadMode(RFM69_t *rfm69)
+{
+	return (ReadRegister(rfm69, 0x01) >> 2) & 0x07;
 }
 
 static void WaitForModeReady(RFM69_t *rfm69)
