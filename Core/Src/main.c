@@ -38,7 +38,20 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-#define DOORBELL_CODE 0x42
+#define DOORBELL_CODE 				0x42
+#define DOORBELL_SEND_DURATION_MS	280
+
+/*
+ * | ListenResolX | Min duration (ListenCoef = 1) | Max duration (ListenCoef = 255) |
+ * |--------------|-------------------------------|---------------------------------|
+ * | 01           | 64 us                         | 16 ms                           |
+ * | 10           | 4.1 ms                        | 1.04 s                          |
+ * | 11           | 0.26 s                        | 67 s                            |
+*/
+#define RFM69_LISTEN_RES_IDLE	3 // 0.26s
+#define RFM69_LISTEN_COEF_IDLE	1 // 1*0.26s = 0.26s IDLE
+#define RFM69_LISTEN_RES_RX		1 // 64 µS
+#define RFM69_LISTEN_COEF_RX	16 // 16*64 µs = 1024 µS RX
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -96,7 +109,7 @@ int main(void)
 	SystemClock_Config();
 
 	/* USER CODE BEGIN SysInit */
-	HAL_Delay(2000); // Delay for the STLINK before sleep
+	HAL_Delay(4000); // Delay for the STLINK before sleep
 	/* USER CODE END SysInit */
 
 	/* Initialize all configured peripherals */
@@ -120,7 +133,8 @@ int main(void)
 	if(RFM69_SetPowerDBm(&tx, 20))
 		printf("RFM69_SetPowerDBm() to 20 dBm failure!\n");
 
-	RFM69_SetMode(&tx, RFM69_MODE_RX);
+	RFM69_ActiveListenMode(&tx, RFM69_LISTEN_RES_IDLE, RFM69_LISTEN_COEF_IDLE, RFM69_LISTEN_RES_RX, RFM69_LISTEN_COEF_RX);
+
 	printf("RFM69 initialized!\n");
 
 	// Go to stop mode
@@ -139,19 +153,28 @@ int main(void)
 		{
 			HAL_GPIO_WritePin(LED_GRN_EN_GPIO_Port, LED_GRN_EN_Pin, GPIO_PIN_SET);
 
+			// Disable Listen mode
+			RFM69_DisableListenMode(&tx, RFM69_MODE_SLEEP);
+
 			// Changing DI0 mapping to nothing
 			RFM69_ChangeDI0Mapping(&tx, RFM69_DI0_TX_NONE);
 
-			// Sending the code
 			printf("Switch pressed! Sending the code...\n");
-			RFM69_SendMessage(&tx, tx_message, sizeof(tx_message) / sizeof(tx_message[0]));
-			RFM69_SetMode(&tx, RFM69_MODE_RX);
+
+			// Sending the code for DOORBELL_SEND_DURATION_MS
+			uint32_t tx_time = HAL_GetTick();
+			while(HAL_GetTick() - tx_time < DOORBELL_SEND_DURATION_MS)
+				RFM69_SendMessage(&tx, tx_message, sizeof(tx_message) / sizeof(tx_message[0]));
 
 			HAL_GPIO_WritePin(LED_GRN_EN_GPIO_Port, LED_GRN_EN_Pin, GPIO_PIN_RESET);
+
 			g_flag_switch = 0;
 
 			// Changing DI0 mapping to RX PayloadReady
 			RFM69_ChangeDI0Mapping(&tx, RFM69_DI0_RX_PAYLOAD_READY);
+
+			// Enable Listen mode
+			RFM69_ActiveListenMode(&tx, RFM69_LISTEN_RES_IDLE, RFM69_LISTEN_COEF_IDLE, RFM69_LISTEN_RES_RX, RFM69_LISTEN_COEF_RX);
 		}
 
 		if(g_flag_message) // Message in the RFM69 FIFO (DI0 IRQ)
