@@ -1,19 +1,14 @@
 /* USER CODE BEGIN Header */
 /**
- ******************************************************************************
- * @file           : main.c
- * @brief          : Main program body
- ******************************************************************************
- * @attention
+ * @file        main.c
+ * @brief       Light Doorbell main program
+ * @author      Esteban CADIC
+ *              STMicroelectronics
+ *              André Heßling
+ * @version     1.0
+ * @date        2025
+ * @copyright   MIT License
  *
- * Copyright (c) 2025 STMicroelectronics.
- * All rights reserved.
- *
- * This software is licensed under terms that can be found in the LICENSE file
- * in the root directory of this software component.
- * If no LICENSE file comes with this software, it is provided AS-IS.
- *
- ******************************************************************************
  */
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
@@ -149,7 +144,7 @@ int main(void)
 	/* USER CODE BEGIN WHILE */
 	while(1)
 	{
-		if(flag_sleep == 1)
+		if(flag_sleep == 1) // If was in sleep mode
 			MCU_Wakeup();
 
 		if(g_flag_switch) // Switch pressed
@@ -271,6 +266,12 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+/**
+ * @brief Shutdown the system.
+ * The system will go to standby mode if the battery voltage is too low, to protect the battery.
+ * Only a manual reset will wake up the system.
+ * 
+ */
 static void SYS_Shutdown(void)
 {
 	printf("Not enough battery to continue!\n");
@@ -283,6 +284,10 @@ static void SYS_Shutdown(void)
 	HAL_PWR_EnterSTANDBYMode();
 }
 
+/**
+ * @brief Enable STM32 STOP mode.
+ * The MCU will be woken up by a GPIO interrupt (RFM69 DI0 message received or switch pressed).
+ */
 static void MCU_Sleep(void)
 {
 	flag_sleep = 1;
@@ -293,6 +298,10 @@ static void MCU_Sleep(void)
 	HAL_PWR_EnterSTOPMode(PWR_LOWPOWERREGULATOR_ON, PWR_STOPENTRY_WFI);
 }
 
+/**
+ * @brief Restore the MCU from STOP mode.
+ * 
+ */
 static void MCU_Wakeup(void)
 {
 	printf("Waking up!\n");

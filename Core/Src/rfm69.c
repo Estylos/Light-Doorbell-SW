@@ -1,5 +1,5 @@
 /**
- * @file        rfm69.h
+ * @file        rfm69.c
  * @brief       RFM69 driver
  * @author      Esteban CADIC
  * @author      André Heßling
@@ -9,20 +9,20 @@
  *
  */
 
-#include "rfm69.h"
-
 #include <stdio.h>
 
-static inline void SPI_ChipSelect(RFM69_t *rfm69);
-static inline void SPI_ChipUnselect(RFM69_t *rfm69);
-static void SPI_SendData(RFM69_t *rfm69, uint8_t addr, uint8_t *data, uint16_t data_size);
-static void SPI_ReadData(RFM69_t *rfm69, uint8_t addr, uint8_t *data, uint16_t data_size);
-static void WriteRegister(RFM69_t *rfm69, uint8_t reg, uint8_t byte);
-static uint8_t ReadRegister(RFM69_t *rfm69, uint8_t reg);
-static uint8_t ReadMode(RFM69_t *rfm69);
-static void WaitForModeReady(RFM69_t *rfm69);
-static void WaitForPacketSent(RFM69_t *rfm69);
+#include "rfm69.h"
 
+
+/*------------------------------------------------------------------------------
+	CONSTANTS
+------------------------------------------------------------------------------*/
+
+/**
+ * @brief RFM69 base configuration.
+ * See RFM69 datasheet for more details for each register.
+ * 
+ */
 static const uint8_t rfm69_base_config[][2] = {
 		{ 0x01, 0x04 }, // RegOpMode: Standby Mode
 		{ 0x02, 0x00 }, // RegDataModul: Packet mode, FSK, no shaping
@@ -46,6 +46,26 @@ static const uint8_t rfm69_base_config[][2] = {
 		{ 0x3C, 0x80 }, // RegFifoThresh: TxStart on FifoNotEmpty, 0 bytes FifoThreshold
 		{ 0x58, 0x1B }, // RegTestLna: Normal sensitivity mode
 		};
+
+
+/*------------------------------------------------------------------------------
+	PROTOTYPES
+------------------------------------------------------------------------------*/
+
+static inline void SPI_ChipSelect(RFM69_t *rfm69);
+static inline void SPI_ChipUnselect(RFM69_t *rfm69);
+static void SPI_SendData(RFM69_t *rfm69, uint8_t addr, uint8_t *data, uint16_t data_size);
+static void SPI_ReadData(RFM69_t *rfm69, uint8_t addr, uint8_t *data, uint16_t data_size);
+static void WriteRegister(RFM69_t *rfm69, uint8_t reg, uint8_t byte);
+static uint8_t ReadRegister(RFM69_t *rfm69, uint8_t reg);
+static uint8_t ReadMode(RFM69_t *rfm69);
+static void WaitForModeReady(RFM69_t *rfm69);
+static void WaitForPacketSent(RFM69_t *rfm69);
+
+
+/*------------------------------------------------------------------------------
+	FONCTIONS
+------------------------------------------------------------------------------*/
 
 void RFM69_Init(RFM69_t *rfm69)
 {
@@ -135,9 +155,6 @@ void RFM69_SendMessage(RFM69_t *rfm69, uint8_t *message, size_t message_size)
 int RFM69_SetPowerDBm(RFM69_t *rfm69, int8_t dBm)
 {
 	uint8_t power_level = 0;
-
-	/* Output power of module is from -18 dBm to +13 dBm
-	 * in "low" power devices, -2 dBm to +20 dBm in high power devices */
 
 	if(dBm < -18 || dBm > 20)
 		return -1;
@@ -231,16 +248,35 @@ size_t RFM69_ReceiveMessage(RFM69_t *rfm69, uint8_t *buffer, size_t buffer_size)
 	return bytes_read;
 }
 
+
+/**
+ * @brief Activate the SPI chip select pin of the RFM69 module.
+ * 
+ * @param rfm69 Pointer to the RFM69 structure.
+ */
 static inline void SPI_ChipSelect(RFM69_t *rfm69)
 {
 	HAL_GPIO_WritePin(rfm69->cs.port, rfm69->cs.pin, GPIO_PIN_RESET);
 }
 
+/**
+ * @brief Deactivate the SPI chip select pin of the RFM69 module.
+ * 
+ * @param rfm69 Pointer to the RFM69 structure.
+ */
 static inline void SPI_ChipUnselect(RFM69_t *rfm69)
 {
 	HAL_GPIO_WritePin(rfm69->cs.port, rfm69->cs.pin, GPIO_PIN_SET);
 }
 
+/**
+ * @brief Send data to the RFM69 module using SPI.
+ * 
+ * @param rfm69 Pointer to the RFM69 structure.
+ * @param addr Address of the register to write to.
+ * @param data Pointer to the data to send.
+ * @param data_size Size of the data to send.
+ */
 static void SPI_SendData(RFM69_t *rfm69, uint8_t addr, uint8_t *data, uint16_t data_size)
 {
 	// REGISTER
@@ -251,6 +287,14 @@ static void SPI_SendData(RFM69_t *rfm69, uint8_t addr, uint8_t *data, uint16_t d
 		HAL_SPI_Transmit(rfm69->spi, data, data_size, HAL_MAX_DELAY);
 }
 
+/**
+ * @brief Read data from the RFM69 module using SPI.
+ * 
+ * @param rfm69 Pointer to the RFM69 structure.
+ * @param addr Address of the register to read from.
+ * @param data Pointer to the buffer to store the received data.
+ * @param data_size Size of the data to read.
+ */
 static void SPI_ReadData(RFM69_t *rfm69, uint8_t addr, uint8_t *data, uint16_t data_size)
 {
 	// REGISTER
@@ -261,6 +305,13 @@ static void SPI_ReadData(RFM69_t *rfm69, uint8_t addr, uint8_t *data, uint16_t d
 		HAL_SPI_Receive(rfm69->spi, data, data_size, HAL_MAX_DELAY);
 }
 
+/**
+ * @brief Write a byte to a register of the RFM69 module.
+ * 
+ * @param rfm69 Pointer to the RFM69 structure.
+ * @param reg Register address to write to.
+ * @param byte Byte to write to the register.
+ */
 static void WriteRegister(RFM69_t *rfm69, uint8_t reg, uint8_t byte)
 {
 	uint8_t reg_array[2] = { reg | 0x80, byte }; // 0x80 to set the write flag
@@ -270,6 +321,13 @@ static void WriteRegister(RFM69_t *rfm69, uint8_t reg, uint8_t byte)
 	SPI_ChipUnselect(rfm69);
 }
 
+/**
+ * @brief Read a byte from a register of the RFM69 module.
+ * 
+ * @param rfm69 Pointer to the RFM69 structure.
+ * @param reg Register address to read from.
+ * @return Value read from the register.
+ */
 static uint8_t ReadRegister(RFM69_t *rfm69, uint8_t reg)
 {
 	uint8_t reg_value = 0;
@@ -281,11 +339,22 @@ static uint8_t ReadRegister(RFM69_t *rfm69, uint8_t reg)
 	return reg_value;
 }
 
+/**
+ * @brief Read the current mode of the RFM69 module.
+ * 
+ * @param rfm69 Pointer to the RFM69 structure.
+ * @return Current mode of the RFM69 module.
+ */
 static uint8_t ReadMode(RFM69_t *rfm69)
 {
 	return (ReadRegister(rfm69, 0x01) >> 2) & 0x07;
 }
 
+/**
+ * @brief Wait until the RFM69 module has changed to the desired mode.
+ * 
+ * @param rfm69 Pointer to the RFM69 structure.
+ */
 static void WaitForModeReady(RFM69_t *rfm69)
 {
 	uint32_t time_entry = HAL_GetTick();
@@ -295,6 +364,11 @@ static void WaitForModeReady(RFM69_t *rfm69)
 		;
 }
 
+/**
+ * @brief Wait until the RFM69 module has sent a packet over the air.
+ * 
+ * @param rfm69 Pointer to the RFM69 structure.
+ */
 static void WaitForPacketSent(RFM69_t *rfm69)
 {
 	uint32_t time_entry = HAL_GetTick();

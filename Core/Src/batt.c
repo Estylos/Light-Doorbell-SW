@@ -13,11 +13,21 @@
 #include "batt.h"
 #include "adc.h"
 
+
+/*------------------------------------------------------------------------------
+	CONSTANTS
+------------------------------------------------------------------------------*/
+
 #define VREFINT									1.2
 #define ADC_RAW_TO_VOLT(value_adc, vref_adc)	( (value_adc * VREFINT) / vref_adc)
 
 // Voltage divider was calculated to give 3.0V (VCC) when VBAT = 4.5V
 #define BATT_VOLTAGE_FORMULA(x)					(x * 1.56)
+
+
+/*------------------------------------------------------------------------------
+	FONCTIONS
+------------------------------------------------------------------------------*/
 
 float BATT_MeasureVoltage(void) {
 	uint32_t vref_adc_raw = 0;
@@ -29,9 +39,11 @@ float BATT_MeasureVoltage(void) {
 
 	HAL_ADC_Start(&hadc);
 
+	// Measure BATT voltage
 	HAL_ADC_PollForConversion(&hadc, 100); // 100 ms timeout
 	batt_adc_raw = HAL_ADC_GetValue(&hadc);
 
+	// Measure VREF (1.2V reference)
 	HAL_ADC_PollForConversion(&hadc, 100);
 	vref_adc_raw = HAL_ADC_GetValue(&hadc);
 
