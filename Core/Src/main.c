@@ -29,6 +29,8 @@
 
 #include "retarget.h"
 #include "rfm69.h"
+#include "leds.h"
+#include "batt.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -47,7 +49,7 @@
  * | 01           | 64 us                         | 16 ms                           |
  * | 10           | 4.1 ms                        | 1.04 s                          |
  * | 11           | 0.26 s                        | 67 s                            |
-*/
+ */
 #define RFM69_LISTEN_RES_IDLE	3 // 0.26s
 #define RFM69_LISTEN_COEF_IDLE	1 // 1*0.26s = 0.26s IDLE
 #define RFM69_LISTEN_RES_RX		1 // 64 µS
@@ -65,15 +67,15 @@
 uint8_t g_flag_switch = 0;
 uint8_t g_flag_message = 0;
 
-uint8_t flag_sleep = 0;
+static uint8_t flag_sleep = 0;
+static RFM69_t tx;
 
-// 2nd byte required otherwise FIFO will not empty...
-uint8_t tx_message[] = { DOORBELL_CODE };
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
+static void SYS_Shutdown(void);
 static void MCU_Sleep(void);
 static void MCU_Wakeup(void);
 /* USER CODE END PFP */
@@ -92,7 +94,7 @@ int main(void)
 
 	/* USER CODE BEGIN 1 */
 	uint8_t rx_buffer[1];
-	RFM69_t tx;
+	uint8_t tx_message[] = { DOORBELL_CODE };
 
 	/* USER CODE END 1 */
 
@@ -119,6 +121,7 @@ int main(void)
 	MX_USART1_UART_Init();
 	/* USER CODE BEGIN 2 */
 	RetargetInit(&huart1); // printf()
+	HAL_ADCEx_Calibration_Start(&hadc, ADC_SINGLE_ENDED);
 
 	// RFM69
 	tx.cs.pin = RFM69_CS_Pin;
@@ -151,7 +154,7 @@ int main(void)
 
 		if(g_flag_switch) // Switch pressed
 		{
-			HAL_GPIO_WritePin(LED_GRN_EN_GPIO_Port, LED_GRN_EN_Pin, GPIO_PIN_SET);
+			LEDs_SetColorBatteryVoltage();
 
 			// Disable Listen mode
 			RFM69_DisableListenMode(&tx, RFM69_MODE_SLEEP);
@@ -166,7 +169,7 @@ int main(void)
 			while(HAL_GetTick() - tx_time < DOORBELL_SEND_DURATION_MS)
 				RFM69_SendMessage(&tx, tx_message, sizeof(tx_message) / sizeof(tx_message[0]));
 
-			HAL_GPIO_WritePin(LED_GRN_EN_GPIO_Port, LED_GRN_EN_Pin, GPIO_PIN_RESET);
+			LEDs_Reset();
 
 			g_flag_switch = 0;
 
@@ -193,7 +196,7 @@ int main(void)
 				printf("\n");
 
 				if(rx_buffer[0] == DOORBELL_CODE) // Doorbell code received
-					BlinkLEDS();
+					LEDs_RXMessage();
 			}
 
 			g_flag_message = 0;
@@ -201,6 +204,12 @@ int main(void)
 			// Enable RFM69 DI0 IRQ
 			HAL_NVIC_EnableIRQ(EXTI0_1_IRQn);
 		}
+
+		float batt_voltage = BATT_MeasureVoltage();
+		printf("Battery voltage is %.2fV\n", batt_voltage);
+
+		if(batt_voltage < BATT_CRITICAL_VOLTAGE)
+			SYS_Shutdown();
 
 		if(g_flag_message == 0 && g_flag_switch == 0)
 			MCU_Sleep();
@@ -262,6 +271,18 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+static void SYS_Shutdown(void)
+{
+	printf("Not enough battery to continue!\n");
+
+	printf("Stopping the RFM69...\n");
+	RFM69_DisableListenMode(&tx, RFM69_MODE_SLEEP);
+
+	printf("Going to STM32 standby mode... Bye!\n");
+	HAL_SuspendTick();
+	HAL_PWR_EnterSTANDBYMode();
+}
+
 static void MCU_Sleep(void)
 {
 	flag_sleep = 1;
