@@ -1,6 +1,6 @@
-# Light Doorbell STM32
+# Light Doorbell Software
 
-Firmware for the **Light Doorbell** project, designed with an STM32L051K8T6 microcontroller and an RFM69HCW radio module. 
+Firmware for the **Light Doorbell** project, designed with a STM32L051K8T6 microcontroller and a RFM69HCW radio module. 
 
 The code is written in C using the STM32 CubeHAL framework.
 
@@ -22,7 +22,7 @@ The code is written in C using the STM32 CubeHAL framework.
   - RFM69 listen mode
 - Dual-color LEDs that change color depending on the battery voltage level (green/red)
 
-## Energy Consumption
+## Energy consumption
 
 Power efficiency was a key objective, as the system is battery-powered (with a 400 mAh Li-ion).  
 
@@ -41,6 +41,6 @@ Further optimizations are possible, such as:
 
 ## Related projects and documentation
 
-- **Light Doorbell KiCad**: Hardware design of the project
-- [RFM69HCW Datasheet (HopeRF)](https://cdn.sparkfun.com/datasheets/Wireless/General/RFM69HCW-V1.1.pdf)
+- **[Light Doorbell HW](https://github.com/Estylos/Light-Doorbell-HW): Hardware design of the project**
+- [RFM69HCW Datasheet](https://cdn.sparkfun.com/datasheets/Wireless/General/RFM69HCW-V1.1.pdf)
 - [RFM69-STM32 by André Heßling](https://github.com/ahessling/RFM69-STM32): Project that inspired the base of my RFM69 driver
