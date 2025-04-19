@@ -73,10 +73,15 @@ void HAL_MspInit(void)
 
   /* System interrupt init*/
 
+  /* Peripheral interrupt init */
+  /* PVD_IRQn interrupt configuration */
+  HAL_NVIC_SetPriority(PVD_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(PVD_IRQn);
+
   /** PVD Configuration
   */
   sConfigPVD.PVDLevel = PWR_PVDLEVEL_4;
-  sConfigPVD.Mode = PWR_PVD_MODE_NORMAL;
+  sConfigPVD.Mode = PWR_PVD_MODE_IT_FALLING;
   HAL_PWR_ConfigPVD(&sConfigPVD);
 
   /** Enable the PVD Output
